@@ -1,85 +1,42 @@
-const APP_VERSION='4.0';
-let photoData=[];
-const $=id=>document.getElementById(id);
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const screens=["home","form","preview","history"]; let pics=[]; let drawing=false, hasSign=false;
+function show(id){screens.forEach(x=>$("#"+x).classList.toggle("hidden",x!==id));scrollTo(0,0)}
+function esc(s=""){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+$("#date").value=new Date().toISOString().slice(0,10);
+$("#newBtn").onclick=()=>show("form"); $("#historyBtn").onclick=()=>{renderHistory();show("history")}; $$("[data-home]").forEach(b=>b.onclick=()=>show("home")); $("#editBtn").onclick=()=>show("form");
 
-function show(id){
-  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
-  $(id).classList.add('active'); scrollTo(0,0);
-  if(id==='history') renderHistory();
-}
-function newReport(){
-  $('reportForm').reset(); photoData=[]; $('photoPreview').innerHTML=''; clearSig();
-  $('date').value=new Date().toISOString().slice(0,10); show('form');
-}
-$('photos').addEventListener('change',e=>{
-  [...e.target.files].slice(0,6-photoData.length).forEach(f=>{
-    let r=new FileReader(); r.onload=()=>{photoData.push(r.result);drawPhotos()}; r.readAsDataURL(f)
-  });
-  e.target.value='';
+$("#photos").addEventListener("change", async e=>{
+ const files=[...e.target.files]; const room=8-pics.length;
+ if(files.length>room) alert("Puoi inserire massimo 8 foto per rapportino.");
+ for(const f of files.slice(0,room)) pics.push(await compress(f));
+ e.target.value=""; renderPics();
 });
-function drawPhotos(){
-  $('photoPreview').innerHTML=photoData.map((x,i)=>`<div class="photoWrap"><img src="${x}"><button type="button" class="removePhoto" onclick="removePhoto(${i})">×</button></div>`).join('');
-}
-function removePhoto(i){photoData.splice(i,1);drawPhotos()}
+function compress(file){return new Promise((res,rej)=>{const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{let w=im.width,h=im.height,m=1600;if(Math.max(w,h)>m){let k=m/Math.max(w,h);w*=k;h*=k}const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(im,0,0,w,h);res(c.toDataURL("image/jpeg",.78))};im.onerror=rej;im.src=rd.result};rd.onerror=rej;rd.readAsDataURL(file)})}
+function renderPics(){$("#photoCount").textContent=`${pics.length} / 8`;$("#photoGrid").innerHTML=pics.map((p,i)=>`<div class="thumb"><img src="${p}"><button data-i="${i}">×</button></div>`).join("");$("#photoGrid").querySelectorAll("button").forEach(b=>b.onclick=()=>{pics.splice(+b.dataset.i,1);renderPics()})}
 
-const c=$('signature'),ctx=c.getContext('2d');ctx.lineWidth=4;ctx.lineCap='round';let drawing=false;
-function pos(e){let r=c.getBoundingClientRect(),p=e.touches?e.touches[0]:e;return{x:(p.clientX-r.left)*c.width/r.width,y:(p.clientY-r.top)*c.height/r.height}}
-function start(e){drawing=true;let p=pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y);e.preventDefault()}
-function move(e){if(!drawing)return;let p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke();e.preventDefault()}
-function end(){drawing=false}
-['mousedown','touchstart'].forEach(x=>c.addEventListener(x,start,{passive:false}));
-['mousemove','touchmove'].forEach(x=>c.addEventListener(x,move,{passive:false}));
-['mouseup','mouseleave','touchend'].forEach(x=>c.addEventListener(x,end));
-function clearSig(){ctx.clearRect(0,0,c.width,c.height)}
+const cv=$("#signature"),cx=cv.getContext("2d");cx.lineWidth=5;cx.lineCap="round";
+function pt(e){const r=cv.getBoundingClientRect(),t=e.touches?.[0]||e;return{x:(t.clientX-r.left)*cv.width/r.width,y:(t.clientY-r.top)*cv.height/r.height}}
+["pointerdown","touchstart"].forEach(n=>cv.addEventListener(n,e=>{e.preventDefault();drawing=true;hasSign=true;let p=pt(e);cx.beginPath();cx.moveTo(p.x,p.y)},{passive:false}));
+["pointermove","touchmove"].forEach(n=>cv.addEventListener(n,e=>{if(!drawing)return;e.preventDefault();let p=pt(e);cx.lineTo(p.x,p.y);cx.stroke()},{passive:false}));
+["pointerup","pointercancel","touchend"].forEach(n=>cv.addEventListener(n,()=>drawing=false));
+$("#clearSign").onclick=()=>{cx.clearRect(0,0,cv.width,cv.height);hasSign=false};
 
-function esc(s=''){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
-function data(){return{date:$('date').value,site:$('site').value,client:$('client').value,job:$('job').value,operator:$('operator').value,instrument:$('instrument').value,rig:$('rig').value,diameter:$('diameter').value,planned:$('planned').value,meters:$('meters').value,phase:$('phase').value,work:$('work').value,notes:$('notes').value,signer:$('signer').value,photos:[...photoData],signature:c.toDataURL(),savedAt:new Date().toISOString()}}
+function data(){return{date:$("#date").value,site:$("#site").value,phase:$("#phase").value,meters:$("#meters").value,work:$("#work").value,notes:$("#notes").value,signer:$("#signer").value,pics:[...pics],sign:hasSign?cv.toDataURL("image/png"):""}}
+function fmtDate(v){if(!v)return"";let [y,m,d]=v.split("-");return `${d}/${m}/${y}`}
+function reportHTML(d){
+ const field=(label,val)=>val?`<p><b>${label}:</b> ${esc(val)}</p>`:"";
+ const photos=d.pics?.length?`<section class="r-section"><h2>FOTO CANTIERE</h2><div class="r-photos">${d.pics.map(x=>`<div class="r-photo"><img src="${x}"></div>`).join("")}</div></section>`:"";
+ const sign=d.sign?`<section class="r-section"><h2>FIRMA</h2>${d.signer?`<p><b>${esc(d.signer)}</b></p>`:""}<img class="r-sign" src="${d.sign}"></section>`:"";
+ return `<div class="r-head"><h1>RAVELPHONE</h1><div class="r-title">RAPPORTINO GIORNALIERO HDD</div><div class="muted">${fmtDate(d.date)}</div></div><div class="rule"></div>
+ <section class="r-section">${field("Cantiere",d.site)}</section>
+ <section class="r-section"><h2>PERFORAZIONE HDD</h2>${field("Fase",d.phase)}${field("Metri eseguiti",d.meters?d.meters+" m":"")}${field("Lavori",d.work)}${field("Note / imprevisti",d.notes)}</section>
+ ${photos}${sign}<footer class="muted" style="border-top:1px solid #cfe1d4;margin-top:10px;padding-top:7px;text-align:center">RAVELPHONE · Rapportino HDD</footer>`;
+}
+$("#previewBtn").onclick=()=>{let d=data();$("#report").innerHTML=reportHTML(d);save(d);show("preview")};
+$("#pdfBtn").onclick=()=>window.print();
+$("#shareBtn").onclick=async()=>{let d=data(),txt=`RAVELPHONE - Rapportino HDD ${fmtDate(d.date)}${d.site?" - "+d.site:""}`;try{if(navigator.share)await navigator.share({title:"Rapportino HDD",text:txt});else alert("Usa Crea / salva PDF e poi il tasto Condividi di iPhone.")}catch(e){}};
 
-function prettyDate(v){if(!v)return '-';let [y,m,d]=v.split('-');return `${d}/${m}/${y}`}
-function row(label,value,unit=''){return value?`<div><b>${label}:</b> ${esc(value)}${unit}</div>`:''}
-function previewReport(){if(!$('site').value){alert('Inserisci almeno il cantiere.');return}renderPaper(data());show('preview')}
-function renderPaper(d){
- $('paper').innerHTML=`
- <div class='reportHead'><div class='reportBrand'>RAVELPHONE</div><div class='reportTitle'>RAPPORTINO GIORNALIERO HDD</div><div class='reportDate'>${prettyDate(d.date)}</div></div>
- <div class='block grid'>${row('Cantiere',d.site)}${row('Cliente',d.client)}${row('Commessa',d.job)}${row('Operatore',d.operator)}${row('Strumentista',d.instrument)}</div>
- <div class='block'><h3>PERFORAZIONE HDD</h3><div class='grid'>${row('Perforatore',d.rig)}${row('Diametro tubo',d.diameter)}${row('Lunghezza prevista',d.planned,' m')}${row('Metri eseguiti oggi',d.meters,' m')}${row('Fase',d.phase)}</div></div>
- ${d.work?`<div class='block'><h3>LAVORAZIONI ESEGUITE</h3><p>${esc(d.work).replace(/\n/g,'<br>')}</p></div>`:''}
- ${d.notes?`<div class='block'><h3>NOTE / IMPREVISTI</h3><p>${esc(d.notes).replace(/\n/g,'<br>')}</p></div>`:''}
- ${d.photos?.length?`<div class='block photoBlock'><h3>FOTO CANTIERE</h3><div class='reportPhotos'>${d.photos.map(x=>`<img src='${x}'>`).join('')}</div></div>`:''}
- <div class='block signatureBlock'><h3>FIRMA</h3><div class='signerName'>${esc(d.signer||'')}</div>${d.signature?`<img class='sigimg' src='${d.signature}'>`:''}</div>
- <div class='reportFooter'>RAVELPHONE · Rapportino HDD</div>`;
-}
-function getHistory(){try{return JSON.parse(localStorage.getItem('ravelReports')||'[]')}catch{return[]}}
-function saveHistory(d){
-  let a=getHistory();
-  const slim={...d,photos:[],signature:d.signature||''};
-  a.unshift(slim);
-  localStorage.setItem('ravelReports',JSON.stringify(a.slice(0,100)));
-}
-function saveAndPrint(){let d=data();saveHistory(d);renderPaper(d);setTimeout(()=>window.print(),150)}
-async function shareReport(){
- let d=data();saveHistory(d);
- let text=`Rapportino HDD RAVELPHONE\nData: ${prettyDate(d.date)}\nCantiere: ${d.site}\nCliente: ${d.client||'-'}\nMetri eseguiti: ${d.meters||'-'} m`;
- if(navigator.share){try{await navigator.share({title:`Rapportino HDD - ${d.site}`,text})}catch(e){}}
- else alert('Condivisione non disponibile: usa “Crea / salva PDF”.');
-}
-function renderHistory(){
- let a=getHistory();
- $('historyList').innerHTML=a.length?a.map((d,i)=>`<div class='historyItem'>
- <div class='historyTop'><div><b>${esc(d.site)}</b><div>${prettyDate(d.date)}${d.client?' · '+esc(d.client):''}</div><div class='muted'>${esc(d.phase||'')}${d.meters?' · '+esc(d.meters)+' m':''}</div></div>
- <button class='dangerSmall' onclick='deleteHistory(${i})'>Elimina</button></div>
- <button class='secondary historyOpen' onclick='openHistory(${i})'>Apri rapportino</button></div>`).join(''):`<div class='card'>Nessun rapportino salvato.</div>`;
-}
-function openHistory(i){let d=getHistory()[i];renderPaper(d);show('preview')}
-function deleteHistory(i){if(!confirm('Eliminare questo rapportino dallo storico?'))return;let a=getHistory();a.splice(i,1);localStorage.setItem('ravelReports',JSON.stringify(a));renderHistory()}
+function save(d){try{let a=JSON.parse(localStorage.getItem("ravelphoneReportsV5")||"[]");a.unshift({...d,id:Date.now()});localStorage.setItem("ravelphoneReportsV5",JSON.stringify(a.slice(0,30)))}catch(e){}}
+function renderHistory(){let a=[];try{a=JSON.parse(localStorage.getItem("ravelphoneReportsV5")||"[]")}catch(e){};$("#historyList").innerHTML=a.length?a.map((d,i)=>`<div class="historyItem"><b>${fmtDate(d.date)} · ${esc(d.site||"Senza cantiere")}</b><br><span>${esc(d.phase||"")}</span><br><button class="secondary openH" data-i="${i}">Apri</button><button class="secondary delH" data-i="${i}">Elimina</button></div>`).join(""):"<p>Nessun rapportino salvato.</p>";$$(".openH").forEach(b=>b.onclick=()=>{$("#report").innerHTML=reportHTML(a[+b.dataset.i]);show("preview")});$$(".delH").forEach(b=>b.onclick=()=>{a.splice(+b.dataset.i,1);localStorage.setItem("ravelphoneReportsV5",JSON.stringify(a));renderHistory()})}
 
-async function registerSW(){
- if(!('serviceWorker' in navigator)) return;
- try{
-   const reg=await navigator.serviceWorker.register(`sw.js?v=${APP_VERSION}`);
-   await reg.update();
-   setInterval(()=>reg.update(),30*60*1000);
- }catch(e){}
-}
-registerSW();
-$('date').value=new Date().toISOString().slice(0,10);
+if("serviceWorker"in navigator){window.addEventListener("load",async()=>{try{const regs=await navigator.serviceWorker.getRegistrations();for(const r of regs)await r.update();await navigator.serviceWorker.register("sw.js?v=5")}catch(e){}})}
