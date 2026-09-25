@@ -1,0 +1,11 @@
+RAVELPHONE HDD v2 - PWA iPhone
+
+Per provarla su Windows: apri index.html.
+Per installarla correttamente su iPhone (fotocamera, offline e icona), pubblica l'intera cartella su un hosting HTTPS, ad esempio GitHub Pages.
+Poi su iPhone:
+1. Apri l'indirizzo HTTPS con Safari.
+2. Tocca Condividi.
+3. Tocca Aggiungi alla schermata Home.
+4. Conferma Aggiungi.
+
+IMPORTANTE: i rapportini dello Storico sono salvati localmente nel browser/dispositivo. Non cancellare i dati del sito se vuoi conservarli. Per backup cloud/sincronizzazione servirà una versione successiva.
